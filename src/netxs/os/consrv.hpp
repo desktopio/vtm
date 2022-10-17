@@ -1625,10 +1625,10 @@ struct consrv
             auto mouse_mode = packet.input.mode & nt::console::inmode::mouse;
             if (mouse_mode)
             {
-                uiterm.mtrack.enable (decltype(uiterm.mtrack)::all_movements);
+                uiterm.mtrack.enable (decltype(uiterm.mtrack)::negative_args);
                 uiterm.mtrack.setmode(decltype(uiterm.mtrack)::w32);
             }
-            else uiterm.mtrack.disable(decltype(uiterm.mtrack)::all_movements);
+            else uiterm.mtrack.disable(decltype(uiterm.mtrack)::negative_args);
             log("\tmouse_input ", mouse_mode ? "enabled" : "disabled");
         }
         handle.mode = packet.input.mode;
@@ -3166,6 +3166,7 @@ struct consrv
 
     void start()
     {
+        reset();
         server = std::thread{ [&]
         {
             while (condrv != INVALID_FD)
@@ -3220,18 +3221,23 @@ struct consrv
         }
         return upto - from;
     }
-    auto reset()
+    void reset()
     {
         inpmod = nt::console::inmode::preprocess
                | nt::console::inmode::cooked
                | nt::console::inmode::echo
-               | nt::console::inmode::mouse
+             //| nt::console::inmode::mouse // Should be disabled in order to selection mode be enabled on startup.
                | nt::console::inmode::insert
                | nt::console::inmode::quickedit;
         outmod = nt::console::outmode::preprocess
                | nt::console::outmode::wrap_at_eol
                | nt::console::outmode::vt;
         uiterm.normal.set_autocr(!(outmod & nt::console::outmode::no_auto_cr));
+        if (inpmod & nt::console::inmode::mouse)
+        {
+            uiterm.mtrack.enable (decltype(uiterm.mtrack)::negative_args);
+            uiterm.mtrack.setmode(decltype(uiterm.mtrack)::w32);
+        }
     }
 
     consrv(Term& uiterm, fd_t& condrv)
@@ -3242,7 +3248,6 @@ struct consrv
           answer{        },
           prompt{ " pty: consrv: " }
     {
-        reset();
         using _ = consrv;
         apimap.resize(0xFF, &_::api_unsupported);
         apimap[0x38] = &_::api_system_langid_get;
