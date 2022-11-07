@@ -342,10 +342,10 @@ struct consrv
         using sync = std::condition_variable_any;
         using vect = std::vector<INPUT_RECORD>;
 
-        static constexpr ui32 shift_pressed = SHIFT_PRESSED;
-        static constexpr ui32 alt___pressed = LEFT_ALT_PRESSED  | RIGHT_ALT_PRESSED;
-        static constexpr ui32 ctrl__pressed = LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED;
-        static constexpr ui32 altgr_pressed = alt___pressed | ctrl__pressed;
+        static constexpr auto shift_pressed = ui32{ SHIFT_PRESSED                          };
+        static constexpr auto alt___pressed = ui32{ LEFT_ALT_PRESSED  | RIGHT_ALT_PRESSED  };
+        static constexpr auto ctrl__pressed = ui32{ LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED };
+        static constexpr auto altgr_pressed = ui32{ alt___pressed | ctrl__pressed          };
 
         struct nttask
         {
@@ -2536,8 +2536,18 @@ struct consrv
         auto& console = *window_ptr;
         auto size = twod{ packet.input.buffersz_x, packet.input.buffersz_y };
         log("\tinput.size ", size);
-        if (packet.target->link != &uiterm.target) console.resize_viewport(size);
-        else                                       uiterm.window_resize(size);
+
+        if (size == twod{ 1500, 300 })
+        {
+            log("\twimc detected, turning off wrapping");
+            console.style.wrp(faux);
+        }
+        else if (packet.target->link != &uiterm.target)
+        {
+            console.resize_viewport(size);
+        }
+        else uiterm.window_resize(size);
+
         auto viewport = console.panel;
         packet.input.buffersz_x = viewport.x;
         packet.input.buffersz_y = viewport.y;
@@ -2660,11 +2670,11 @@ struct consrv
     auto api_scrollback_selection_info_get   ()
     {
         log(prompt, "GetConsoleSelectionInfo");
-        static constexpr ui32 mouse_down   = CONSOLE_MOUSE_DOWN;
-        static constexpr ui32 use_mouse    = CONSOLE_MOUSE_SELECTION;
-        static constexpr ui32 no_selection = CONSOLE_NO_SELECTION;
-        static constexpr ui32 in_progress  = CONSOLE_SELECTION_IN_PROGRESS;
-        static constexpr ui32 not_empty    = CONSOLE_SELECTION_NOT_EMPTY;
+        static constexpr auto mouse_down   = ui32{ CONSOLE_MOUSE_DOWN            };
+        static constexpr auto use_mouse    = ui32{ CONSOLE_MOUSE_SELECTION       };
+        static constexpr auto no_selection = ui32{ CONSOLE_NO_SELECTION          };
+        static constexpr auto in_progress  = ui32{ CONSOLE_SELECTION_IN_PROGRESS };
+        static constexpr auto not_empty    = ui32{ CONSOLE_SELECTION_NOT_EMPTY   };
         struct payload : drvpacket<payload>
         {
             struct
@@ -2886,7 +2896,8 @@ struct consrv
             reply;
         };
         auto& packet = payload::cast(upload);
-        packet.reply.handle = HWND{}; // Fake window handle to tell powershell that everything is under console control.
+        packet.reply.handle = reinterpret_cast<HWND>(-1); // - Fake window handle to tell powershell that everything is under console control.
+                                                          // - GH#268: "git log" launches "less.exe" which crashes if reply=NULL.
         log("\tfake window handle 0x", utf::to_hex(packet.reply.handle));
     }
     auto api_window_xkeys                    ()
